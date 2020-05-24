@@ -9,18 +9,25 @@ mycroft_path = sys.argv[1]
 sys.path.append(mycroft_path)
 sys.path.append("{}/runner".format(mycroft_path))
 # import folder containing stt source code
-cwd=os.getcwd()
-sys.path.append("{}/commanded_stt/commanded_stt".format(cwd))
 from precise.util import activate_notify
 from precise_runner import PreciseRunner, PreciseEngine
 
 # google real-time STT
-from single_stream_stt import *
+from commanded_stt.single_stream_stt import *
+
+# ros messages
+from std_msgs.msg import String
+from wisc_ros2_msgs.msg import StringArray
 
 class Controller(Node):
 
 	def __init__(self):
 		super().__init__('listener_node')
+
+		# setup publishers and subscribers
+		self.command_triggered_pub = self.create_publisher(String,'/stt_triggered',10)
+		self.in_progress_stt_pub = self.create_publisher(StringArray,'/stt_in_progress',10)
+		self.finished_stt_pub = self.create_publisher(StringArray,'/stt_result',10)
 
 		# setup modified google real-time stt
 		self.single_stream_stt = SingleStreamSTT()
@@ -29,12 +36,12 @@ class Controller(Node):
 		self.stream_lock = threading.Lock()
 
 		# setup mycroft threads
-		thread = threading.Thread(target=self.listen_for_wake_words, args=("wake_word_engines/robotsay.pb","robotsay",0.5))
+		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/robotsay.pb","robotsay",0.5))
 		thread.daemon = True			# Daemonize thread
 		thread.start()
 
-	def start_stream_callback(self, receive_single_stream, receive_single_in_progress_stream, receive_agent_highlight, activation_time):
-		thread = threading.Thread(target=self.single_stream_stt.run_terminal, args=(receive_single_stream,receive_single_in_progress_stream,receive_agent_highlight,activation_time,self.stream_lock))
+	def start_stream_callback(self, receive_single_stream, receive_single_in_progress_stream):
+		thread = threading.Thread(target=self.single_stream_stt.run_terminal, args=(receive_single_stream,receive_single_in_progress_stream,self.stream_lock))
 		thread.daemon = True			# Daemonize thread
 		thread.start()
 
@@ -42,22 +49,17 @@ class Controller(Node):
 		def on_prediction(prob):
 			pass
 
-		def receive_single_stream(text,activation_time):
-			print("text {}: {}".format(activation_time, text))
+		def receive_single_stream(text):
+			print("text {}: {}".format(text))
 			#self.detected_text_callback(activation_time, text, activation_notifier)
 
 		def receive_single_in_progress_stream(text):
 			print("ip_text {}".format(text))
 			#self.send_text_to_interface(text,None,activation_notifier, in_progress=True)
 
-		def receive_agent_highlight():
-			print("received content")
-			#self.toggle_agent_highlight(activation_notifier,content_id)
-
 		def on_activation():
 			print("ACTIVATION: {}".format(activation_notifier))
-			activation_time = time.time()
-			self.start_stream_callback(receive_single_stream, receive_single_in_progress_stream, receive_agent_highlight, activation_time)
+			self.start_stream_callback(receive_single_stream, receive_single_in_progress_stream)
 			#self.detected_text_callback(activation_time, text, activation_notifier)
 			#activate_notify()
 
