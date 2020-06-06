@@ -25,9 +25,9 @@ class Controller(Node):
 		super().__init__('listener_node')
 
 		# setup publishers and subscribers
-		self.command_triggered_pub = self.create_publisher(String,'/stt_triggered',10)
-		self.in_progress_stt_pub = self.create_publisher(StringArray,'/stt_in_progress',10)
-		self.finished_stt_pub = self.create_publisher(StringArray,'/stt_result',10)
+		self.command_triggered_pub = self.create_publisher(String,'/stt/triggered',10)
+		self.in_progress_stt_pub = self.create_publisher(StringArray,'/stt/in_progress',10)
+		self.finished_stt_pub = self.create_publisher(StringArray,'/stt/result',10)
 
 		# setup modified google real-time stt
 		self.single_stream_stt = SingleStreamSTT()
@@ -51,6 +51,7 @@ class Controller(Node):
 
 		def receive_single_stream(text):
 			print("text {}: {}".format(text))
+			self.finished_stt_pub.publish(text)
 			#self.detected_text_callback(activation_time, text, activation_notifier)
 
 		def receive_single_in_progress_stream(text):
