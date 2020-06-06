@@ -50,8 +50,12 @@ class Controller(Node):
 			pass
 
 		def receive_single_stream(text):
-			print("text {}: {}".format(text))
-			self.finished_stt_pub.publish(text)
+			print("text {}".format(text))
+			msg = StringArray()
+			msg.array.append(activation_notifier)
+			msg.array.append(text)
+
+			self.finished_stt_pub.publish(msg)
 			#self.detected_text_callback(activation_time, text, activation_notifier)
 
 		def receive_single_in_progress_stream(text):
