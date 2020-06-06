@@ -36,7 +36,7 @@ class Controller(Node):
 		self.stream_lock = threading.Lock()
 
 		# setup mycroft threads
-		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/robotsay.pb","robotsay",0.5))
+		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/okay-robot.pb","okay-robot",0.5))
 		thread.daemon = True			# Daemonize thread
 		thread.start()
 
