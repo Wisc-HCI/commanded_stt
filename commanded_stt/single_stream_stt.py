@@ -266,7 +266,7 @@ class SingleStreamSTT:
 				sample_rate_hertz=SAMPLE_RATE,
 				language_code='en-US',
 				max_alternatives=1,
-				enable_automatic_punctuation=False,
+				enable_automatic_punctuation=True,
 				enable_word_time_offsets=True,)
 			streaming_config = speech.types.StreamingRecognitionConfig(
 				config=config,
