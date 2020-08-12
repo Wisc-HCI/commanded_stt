@@ -178,7 +178,7 @@ class SingleStreamSTT:
 		self.timer_lock = threading.Lock()
 		self.record = False
 
-	def listen_print_loop(self, responses, stream, received_callback, send_in_progress_text_callback):
+	def listen_print_loop(self, responses, stream, received_callback, activation_notifier, send_in_progress_text_callback):
 		"""Iterates through server responses and prints them.
 		The responses passed is a generator that will block until a response
 		is provided by the server.
@@ -230,7 +230,7 @@ class SingleStreamSTT:
 					break
 				'''
 
-				received_callback(transcript)
+				received_callback(transcript, activation_notifier)
 
 				# we are done here
 				break
@@ -246,7 +246,7 @@ class SingleStreamSTT:
 
 				#check_pre_utterance(transcript)
 
-	def run_terminal(self, receival_callback, send_in_progress_text_callback, stream_lock):
+	def run_terminal(self, receival_callback, send_in_progress_text_callback, stream_lock, activation_notifier):
 		"""start bidirectional streaming from microphone input to speech API"""
 
 		if stream_lock.acquire(blocking=False):
@@ -303,7 +303,7 @@ class SingleStreamSTT:
 					thread.start()
 
 					# Now, put the transcription responses to use.
-					self.listen_print_loop(responses, stream, receival_callback, send_in_progress_text_callback)
+					self.listen_print_loop(responses, stream, receival_callback, activation_notifier, send_in_progress_text_callback)
 				except google.api_core.exceptions.DeadlineExceeded:
 					print("Deadline exceeded. Closing stream.")
 				except google.api_core.exceptions.Cancelled:
