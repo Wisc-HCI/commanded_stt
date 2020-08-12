@@ -41,8 +41,12 @@ from google.oauth2 import service_account
 
 # Audio recording parameters
 STREAMING_LIMIT = 10000
-SAMPLE_RATE = 44100
-CHUNK_SIZE = 1024#int(SAMPLE_RATE / 10)  # 100ms
+if sys.platform == 'darwin':
+	SAMPLE_RATE = 16000
+	CHUNK_SIZE = 2048#int(SAMPLE_RATE / 10)  # 100ms
+else:
+	SAMPLE_RATE = 44100
+	CHUNK_SIZE = 1024#int(SAMPLE_RATE / 10)  # 100ms
 
 RED = '\033[0;31m'
 GREEN = '\033[0;32m'
