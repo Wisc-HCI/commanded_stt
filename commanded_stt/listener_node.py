@@ -19,6 +19,7 @@ from commanded_stt.single_stream_stt import *
 from std_msgs.msg import String
 from wisc_ros2_msgs.msg import StringArray
 from wisc_ros2_msgs.msg import WebContent
+from wisc_ros2_msgs.msg import ActivationState
 
 class Controller(Node):
 
@@ -32,6 +33,9 @@ class Controller(Node):
 		self.external_trigger_sub = self.create_subscription(String,'/stt/trigger',self.stt_triggered_callback,10)
 		self.move_on_pub = self.create_publisher(String, "/stt/done", 10)
 
+		# settings for which particular wake word to listen to
+		self.set_listeners_sub = self.create_subscription(ActivationState, "/stt/set_active", self.set_active_listeners, 10)
+
 		# communication with the robot
 		self.update_wc_pub = self.create_publisher(WebContent, "/robot/web_content", 10)
 
@@ -41,7 +45,18 @@ class Controller(Node):
 		# semaphore for the stream callback
 		self.stream_lock = threading.Lock()
 
+		# store active engines
+		self.engines = {}
+		for item in os.listdir("src/install/commanded_stt/share/commanded_stt"):
+			if len(item) > 3 and item[-3:] == ".pb":
+				self.engines[item[:-3]] = [None,"src/install/commanded_stt/share/commanded_stt/{}".format(item)]
+
+		test_msg = ActivationState()
+		test_msg.activate.array.append("okay_robot")
+		self.set_active_listeners(test_msg)
+
 		# setup mycroft threads
+		'''
 		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/okay-robot.pb","okay-robot",0.5))
 		thread.daemon = True			# Daemonize thread
 		thread.start()
@@ -49,6 +64,25 @@ class Controller(Node):
 		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/okay-robot.pb","move-on",1.0))
 		thread.daemon = True			# Daemonize thread
 		thread.start()
+		'''
+
+	def set_active_listeners(self, msg):
+		to_deactivate = msg.deactivate
+		to_activate = msg.activate
+
+		for activation_name in to_deactivate.array:
+			engine = self.engines[activation_name][0]
+			engine.stop()
+
+		activation_time_delay = 0.2
+		for activation_name in to_activate.array:
+			filepath = self.engines[activation_name][1]
+
+			thread = threading.Thread(target=self.listen_for_wake_words, args=(filepath,activation_name,activation_time_delay))
+			thread.daemon = True			# Daemonize thread
+			thread.start()
+
+			activation_time_delay += 0.2
 
 	def stt_triggered_callback(self, msg):
 		string = msg.data
@@ -109,6 +143,7 @@ class Controller(Node):
 		print("{} ready".format(activation_notifier))
 
 		engine = PreciseEngine('{}/.venv/bin/precise-engine'.format(path), word_library)
+		self.engines[activation_notifier] = engine
 		PreciseRunner(engine, on_prediction=on_prediction, on_activation=on_activation,
 					  trigger_level=0).start()
 
