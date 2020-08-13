@@ -46,7 +46,7 @@ class Controller(Node):
 		thread.daemon = True			# Daemonize thread
 		thread.start()
 
-		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/okay-robot.pb","move-on",0.5))
+		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/okay-robot.pb","move-on",1.0))
 		thread.daemon = True			# Daemonize thread
 		thread.start()
 
@@ -106,6 +106,7 @@ class Controller(Node):
 		path = sys.argv[1]
 
 		time.sleep(startdelay)
+		print("{} ready".format(activation_notifier))
 
 		engine = PreciseEngine('{}/.venv/bin/precise-engine'.format(path), word_library)
 		PreciseRunner(engine, on_prediction=on_prediction, on_activation=on_activation,
