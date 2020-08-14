@@ -244,7 +244,7 @@ class SingleStreamSTT:
 				sys.stdout.write(RED)
 				sys.stdout.write('\033[K')
 				sys.stdout.write(transcript + '\r')
-				send_in_progress_text_callback(transcript)
+				send_in_progress_text_callback(transcript, activation_notifier)
 
 				stream.last_transcript_was_final = False
 

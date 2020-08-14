@@ -18,7 +18,6 @@ from commanded_stt.single_stream_stt import *
 # ros messages
 from std_msgs.msg import String
 from wisc_ros2_msgs.msg import StringArray
-from wisc_ros2_msgs.msg import WebContent
 from wisc_ros2_msgs.msg import ActivationState
 
 class Controller(Node):
@@ -30,10 +29,8 @@ class Controller(Node):
 		self.command_triggered_pub = self.create_publisher(String,'/stt/triggered',10)
 		self.in_progress_stt_pub = self.create_publisher(StringArray,'/stt/in_progress',10)
 		self.finished_stt_pub = self.create_publisher(StringArray,'/stt/result',10)
-		self.external_trigger_sub = self.create_subscription(String,'/stt/trigger',self.stt_triggered_callback,10)
-		self.move_on_pub = self.create_publisher(String, "/stt/done", 10)
 
-		# settings for which particular wake word to listen to
+		self.external_trigger_sub = self.create_subscription(String,'/stt/trigger',self.stt_triggered_callback,10)
 		self.set_listeners_sub = self.create_subscription(ActivationState, "/stt/set_active", self.set_active_listeners, 10)
 
 		# communication with the robot
@@ -50,21 +47,6 @@ class Controller(Node):
 		for item in os.listdir("src/install/commanded_stt/share/commanded_stt"):
 			if len(item) > 3 and item[-3:] == ".pb":
 				self.engines[item[:-3]] = [None,"src/install/commanded_stt/share/commanded_stt/{}".format(item)]
-
-		test_msg = ActivationState()
-		test_msg.activate.array.append("okay_robot")
-		self.set_active_listeners(test_msg)
-
-		# setup mycroft threads
-		'''
-		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/okay-robot.pb","okay-robot",0.5))
-		thread.daemon = True			# Daemonize thread
-		thread.start()
-
-		thread = threading.Thread(target=self.listen_for_wake_words, args=("install/commanded_stt/share/commanded_stt/okay-robot.pb","move-on",1.0))
-		thread.daemon = True			# Daemonize thread
-		thread.start()
-		'''
 
 	def set_active_listeners(self, msg):
 		to_deactivate = msg.deactivate
@@ -94,19 +76,18 @@ class Controller(Node):
 		thread.start()
 
 	def receive_single_stream(self, text, activation_notifier):
-		print("text {}".format(text))
+		print(text)
 		msg = StringArray()
 		msg.array.append(activation_notifier)
 		msg.array.append(text)
-
-		self.update_wc_helper(text,color="rgb(0,0,40)")
 		self.finished_stt_pub.publish(msg)
-		#self.detected_text_callback(activation_time, text, activation_notifier)
 
-	def receive_single_in_progress_stream(self, text):
-		print("ip_text {}".format(text))
-		self.update_wc_helper(text)
-		#self.send_text_to_interface(text,None,activation_notifier, in_progress=True)
+	def receive_single_in_progress_stream(self, text, activation_notifier):
+		print(text)
+		msg = StringArray()
+		msg.array.append(activation_notifier)
+		msg.array.append(text)
+		self.in_progress_stt_pub.publish(msg)
 
 	def update_wc_helper(self, text, color="rgb(75, 15, 0)"):
 		wc = WebContent()
@@ -125,17 +106,12 @@ class Controller(Node):
 		def on_activation():
 			print("ACTIVATION: {}".format(activation_notifier))
 
-			# some activations do NOT require listening for further input
-			if activation_notifier == "move-on":
-				#self.move_on_pub.publish(String())
-				pass
-
 			# other activations DO require listening for further input
 			else:
-				self.update_wc_helper("")
+				msg = String()
+				msg.data = activation_notifier
+				self.command_triggered_pub.publish(msg)
 				self.start_stream_callback(activation_notifier)
-			#self.detected_text_callback(activation_time, text, activation_notifier)
-			#activate_notify()
 
 		path = sys.argv[1]
 
