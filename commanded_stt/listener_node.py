@@ -33,9 +33,6 @@ class Controller(Node):
 		self.external_trigger_sub = self.create_subscription(String,'/stt/trigger',self.stt_triggered_callback,10)
 		self.set_listeners_sub = self.create_subscription(ActivationState, "/stt/set_active", self.set_active_listeners, 10)
 
-		# communication with the robot
-		self.update_wc_pub = self.create_publisher(WebContent, "/robot/web_content", 10)
-
 		# setup modified google real-time stt
 		self.single_stream_stt = SingleStreamSTT()
 
@@ -52,12 +49,22 @@ class Controller(Node):
 		to_deactivate = msg.deactivate
 		to_activate = msg.activate
 
-		for activation_name in to_deactivate.array:
-			engine = self.engines[activation_name][0]
-			engine.stop()
+		if to_deactivate.array[0] == "all":
+			arr = self.engines
+		else:
+			arr = to_deactivate.array
+		for activation_name in arr:
+			if self.engines[activation_name][0] is not None:
+				engine = self.engines[activation_name][0]
+				engine.stop()
+				self.engines[activation_name][0] = None
 
 		activation_time_delay = 0.2
-		for activation_name in to_activate.array:
+		if to_activate.array[0] == "all":
+			arr = self.engines
+		else:
+			arr = to_activate.array
+		for activation_name in arr:
 			filepath = self.engines[activation_name][1]
 
 			thread = threading.Thread(target=self.listen_for_wake_words, args=(filepath,activation_name,activation_time_delay))
@@ -89,16 +96,6 @@ class Controller(Node):
 		msg.array.append(text)
 		self.in_progress_stt_pub.publish(msg)
 
-	def update_wc_helper(self, text, color="rgb(75, 15, 0)"):
-		wc = WebContent()
-		wc.prompt = "<SAME>"
-		wc.utt = text
-		wc.content = "<SAME>"
-		wc.options = "<SAME>"
-		wc.color = color
-
-		self.update_wc_pub.publish(wc)
-
 	def listen_for_wake_words(self, word_library, activation_notifier, startdelay):
 		def on_prediction(prob):
 			pass
@@ -106,12 +103,10 @@ class Controller(Node):
 		def on_activation():
 			print("ACTIVATION: {}".format(activation_notifier))
 
-			# other activations DO require listening for further input
-			else:
-				msg = String()
-				msg.data = activation_notifier
-				self.command_triggered_pub.publish(msg)
-				self.start_stream_callback(activation_notifier)
+			msg = String()
+			msg.data = activation_notifier
+			self.command_triggered_pub.publish(msg)
+			self.start_stream_callback(activation_notifier)
 
 		path = sys.argv[1]
 
@@ -119,7 +114,7 @@ class Controller(Node):
 		print("{} ready".format(activation_notifier))
 
 		engine = PreciseEngine('{}/.venv/bin/precise-engine'.format(path), word_library)
-		self.engines[activation_notifier] = engine
+		self.engines[activation_notifier][0] = engine
 		PreciseRunner(engine, on_prediction=on_prediction, on_activation=on_activation,
 					  trigger_level=0).start()
 
