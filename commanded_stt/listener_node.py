@@ -114,9 +114,9 @@ class Controller(Node):
 		print("{} ready".format(activation_notifier))
 
 		engine = PreciseEngine('{}/.venv/bin/precise-engine'.format(path), word_library)
-		self.engines[activation_notifier][0] = engine
-		PreciseRunner(engine, on_prediction=on_prediction, on_activation=on_activation,
-					  trigger_level=0).start()
+		self.engines[activation_notifier][0] = PreciseRunner(engine, on_prediction=on_prediction, on_activation=on_activation,
+					  trigger_level=0)
+		self.engines[activation_notifier][0].start()
 
 def main():
 	rclpy.init()
