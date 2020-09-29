@@ -182,6 +182,7 @@ class SingleStreamSTT:
 		self.timer_lock = threading.Lock()
 		self.record = False
 		self.allow_stream = False
+		self.responses = None
 
 	def listen_print_loop(self, responses, stream, received_callback, activation_notifier, send_in_progress_text_callback):
 		"""Iterates through server responses and prints them.
@@ -375,6 +376,8 @@ class SingleStreamSTT:
 					responses = client.streaming_recognize(streaming_config,
 																   requests)#,retry=retry)
 
+					self.responses = responses
+
 					'''
 					self.timer_counter[0] = 2
 					thread = threading.Thread(target=self.timeout_timer, args=(self.timer_callback,responses))
@@ -401,6 +404,9 @@ class SingleStreamSTT:
 	def cancel_perpetual(self):
 		print("cancelling perpetual stream")
 		self.allow_stream = False
+		if self.responses is not None:
+			self.responses.cancel()
+			self.responses = None
 
 	def timer_callback(self, stream):
 		'''
