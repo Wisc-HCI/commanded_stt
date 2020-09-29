@@ -41,15 +41,24 @@ class Controller(Node):
 
 		# store active engines
 		self.engines = {}
-		for item in os.listdir("src/install/commanded_stt/share/commanded_stt"):
+		for item in os.listdir("install/commanded_stt/share/commanded_stt"):
 			if len(item) > 3 and item[-3:] == ".pb":
-				self.engines[item[:-3]] = [None,"src/install/commanded_stt/share/commanded_stt/{}".format(item)]
+				self.engines[item[:-3]] = [None,"install/commanded_stt/share/commanded_stt/{}".format(item), True]
+
+		# set listen/stop listen to be active always
+		act_st = ActivationState()
+		act_st.activate.array.append("listen_to_me")
+		act_st.activate.array.append("stop_listening")
+		act_st.stream_after_activation.append(True)
+		act_st.stream_after_activation.append(False)
+		self.set_active_listeners(act_st)
 
 	def set_active_listeners(self, msg):
 		to_deactivate = msg.deactivate
 		to_activate = msg.activate
+		stream_after_activation = msg.stream_after_activation
 
-		if to_deactivate.array[0] == "all":
+		if len(to_deactivate.array) > 0 and to_deactivate.array[0] == "all":
 			arr = self.engines
 		else:
 			arr = to_deactivate.array
@@ -62,10 +71,15 @@ class Controller(Node):
 		activation_time_delay = 0.2
 		if to_activate.array[0] == "all":
 			arr = self.engines
+			to_stream = [stream_after_activation.array[0] for i in range(len(arr))]
 		else:
 			arr = to_activate.array
-		for activation_name in arr:
+			to_stream = stream_after_activation
+		for i in range(len(arr)):
+			activation_name = arr[i]
+			stream = to_stream[i]
 			filepath = self.engines[activation_name][1]
+			self.engines[activation_name][2] = stream
 
 			thread = threading.Thread(target=self.listen_for_wake_words, args=(filepath,activation_name,activation_time_delay))
 			thread.daemon = True			# Daemonize thread
@@ -81,6 +95,14 @@ class Controller(Node):
 		thread = threading.Thread(target=self.single_stream_stt.run_terminal, args=(self.receive_single_stream,self.receive_single_in_progress_stream,self.stream_lock, activation_notifier))
 		thread.daemon = True			# Daemonize thread
 		thread.start()
+
+	def start_perpetual_stream_callback(self):
+		thread = threading.Thread(target=self.single_stream_stt.run_terminal_perpetual, args=(self.receive_single_stream,self.receive_single_in_progress_stream,self.stream_lock))
+		thread.daemon = True			# Daemonize thread
+		thread.start()
+
+	def end_perpetual_stream(self):
+		self.single_stream_stt.cancel_perpetual()
 
 	def receive_single_stream(self, text, activation_notifier):
 		print(text)
@@ -106,7 +128,14 @@ class Controller(Node):
 			msg = String()
 			msg.data = activation_notifier
 			self.command_triggered_pub.publish(msg)
-			self.start_stream_callback(activation_notifier)
+
+			if activation_notifier != "listen_to_me" and activation_notifier != "stop_listening":
+				if self.engines[activation_notifier][2]:
+					self.start_stream_callback(activation_notifier)
+			elif activation_notifier == "listen_to_me":
+				self.start_perpetual_stream_callback()
+			else:
+				self.end_perpetual_stream()
 
 		path = sys.argv[1]
 

@@ -181,6 +181,7 @@ class SingleStreamSTT:
 		self.timer_counter = [-1]
 		self.timer_lock = threading.Lock()
 		self.record = False
+		self.allow_stream = False
 
 	def listen_print_loop(self, responses, stream, received_callback, activation_notifier, send_in_progress_text_callback):
 		"""Iterates through server responses and prints them.
@@ -233,8 +234,8 @@ class SingleStreamSTT:
 					stream.closed = True
 					break
 				'''
-
-				received_callback(transcript, activation_notifier)
+				if self.allow_stream and transcript.lower() != "stop listening.":
+					received_callback(transcript, activation_notifier)
 
 				# we are done here
 				break
@@ -244,7 +245,8 @@ class SingleStreamSTT:
 				sys.stdout.write(RED)
 				sys.stdout.write('\033[K')
 				sys.stdout.write(transcript + '\r')
-				send_in_progress_text_callback(transcript, activation_notifier)
+				if self.allow_stream:
+					send_in_progress_text_callback(transcript, activation_notifier)
 
 				stream.last_transcript_was_final = False
 
@@ -307,7 +309,9 @@ class SingleStreamSTT:
 					thread.start()
 
 					# Now, put the transcription responses to use.
+					self.allow_stream = True
 					self.listen_print_loop(responses, stream, receival_callback, activation_notifier, send_in_progress_text_callback)
+					self.allow_stream = False
 				except google.api_core.exceptions.DeadlineExceeded:
 					print("Deadline exceeded. Closing stream.")
 				except google.api_core.exceptions.Cancelled:
@@ -319,6 +323,84 @@ class SingleStreamSTT:
 			stream_lock.release()
 		else:
 			print("could not acquire stream lock")
+
+	def run_terminal_perpetual(self, receival_callback, send_in_progress_text_callback, stream_lock):
+		"""start bidirectional streaming from microphone input to speech API"""
+
+		if stream_lock.acquire(blocking=False):
+
+			try:
+				dialogflow_key = json.load(open('speech_key.json'))
+				credentials = (service_account.Credentials.from_service_account_info(dialogflow_key))
+				client = speech.SpeechClient(credentials=credentials)
+			except:
+				print("could not find or load google API service key")
+				print("returning without calling STT")
+				stream_lock.release()
+				return
+
+			config = speech.types.RecognitionConfig(
+				encoding=speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
+				sample_rate_hertz=SAMPLE_RATE,
+				language_code='en-US',
+				max_alternatives=1,
+				enable_automatic_punctuation=True,
+				enable_word_time_offsets=True,)
+			streaming_config = speech.types.StreamingRecognitionConfig(
+				config=config,
+				interim_results=True)
+				#single_utterance=True)
+
+			mic_manager = ResumableMicrophoneStream(SAMPLE_RATE, CHUNK_SIZE)
+			print(mic_manager.chunk_size)
+			sys.stdout.write(YELLOW)
+			sys.stdout.write('\nListening, say "Quit" or "Exit" to stop.\n\n')
+			sys.stdout.write('End (ms)	   Transcript Results/Status\n')
+			sys.stdout.write('=====================================================\n')
+
+			self.timer_lock.acquire()
+			with mic_manager as stream:
+
+				sys.stdout.write(YELLOW)
+				sys.stdout.write('\n' + str(
+					STREAMING_LIMIT * stream.restart_counter) + ': NEW REQUEST\n')
+
+				stream.audio_input = []
+				audio_generator = stream.generator()
+
+				requests = (speech.types.StreamingRecognizeRequest(
+					audio_content=content)for content in audio_generator)
+
+				try:
+					responses = client.streaming_recognize(streaming_config,
+																   requests)#,retry=retry)
+
+					'''
+					self.timer_counter[0] = 2
+					thread = threading.Thread(target=self.timeout_timer, args=(self.timer_callback,responses))
+					thread.daemon = True
+					thread.start()
+					'''
+
+					# Now, put the transcription responses to use.
+					self.allow_stream = True
+					while self.allow_stream:
+						self.listen_print_loop(responses, stream, receival_callback, "listen_to_me", send_in_progress_text_callback)
+				except google.api_core.exceptions.DeadlineExceeded:
+					print("Deadline exceeded. Closing stream.")
+				except google.api_core.exceptions.Cancelled:
+					print("Cancelled by application")
+
+			print("stream thread ending")
+
+			self.timer_lock.release()
+			stream_lock.release()
+		else:
+			print("could not acquire stream lock")
+
+	def cancel_perpetual(self):
+		print("cancelling perpetual stream")
+		self.allow_stream = False
 
 	def timer_callback(self, stream):
 		'''
