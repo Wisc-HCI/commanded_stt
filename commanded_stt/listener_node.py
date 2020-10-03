@@ -67,9 +67,13 @@ class Controller(Node):
 				engine = self.engines[activation_name][0]
 				engine.stop()
 				self.engines[activation_name][0] = None
+				msg = StringArray()
+				msg.array.append("listen_to_me")
+				msg.array.append("")
+				self.in_progress_stt_pub.publish(msg)
 
 		activation_time_delay = 0.2
-		if to_activate.array[0] == "all":
+		if len(to_activate.array) > 0 and to_activate.array[0] == "all":
 			arr = self.engines
 			to_stream = [stream_after_activation.array[0] for i in range(len(arr))]
 		else:
@@ -89,7 +93,8 @@ class Controller(Node):
 
 	def stt_triggered_callback(self, msg):
 		string = msg.data
-		self.start_stream_callback("auto")
+		if string == "stop_listening":
+			self.end_perpetual_stream()
 
 	def start_stream_callback(self, activation_notifier):
 		thread = threading.Thread(target=self.single_stream_stt.run_terminal, args=(self.receive_single_stream,self.receive_single_in_progress_stream,self.stream_lock, activation_notifier))
@@ -106,10 +111,15 @@ class Controller(Node):
 
 	def receive_single_stream(self, text, activation_notifier):
 		print(text)
-		msg = StringArray()
-		msg.array.append(activation_notifier)
-		msg.array.append(text)
-		self.finished_stt_pub.publish(msg)
+
+		# handle the case in which text was received after the stop listening command was called
+		if self.engines["listen_to_me"][0] is not None:
+			msg = StringArray()
+			msg.array.append(activation_notifier)
+			msg.array.append(text)
+			self.finished_stt_pub.publish(msg)
+		else:
+			print("could not send text because listener not active")
 
 	def receive_single_in_progress_stream(self, text, activation_notifier):
 		print(text)
@@ -133,7 +143,8 @@ class Controller(Node):
 				if self.engines[activation_notifier][2]:
 					self.start_stream_callback(activation_notifier)
 			elif activation_notifier == "listen_to_me":
-				self.start_perpetual_stream_callback()
+				if self.engines[activation_notifier][2]:
+					self.start_perpetual_stream_callback()
 			else:
 				self.end_perpetual_stream()
 
