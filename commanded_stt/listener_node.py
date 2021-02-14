@@ -53,6 +53,9 @@ class Controller(Node):
 		act_st.stream_after_activation.append(False)
 		self.set_active_listeners(act_st)
 
+	'''
+	Set of external methods that can control this node w/o using speech
+	'''
 	def set_active_listeners(self, msg):
 		to_deactivate = msg.deactivate
 		to_activate = msg.activate
@@ -95,6 +98,11 @@ class Controller(Node):
 		string = msg.data
 		if string == "stop_listening":
 			self.end_perpetual_stream()
+		elif string == "listen_to_me":
+			self.start_perpetual_stream_callback()
+	'''
+	End of externally-accessible methods
+	'''
 
 	def start_stream_callback(self, activation_notifier):
 		thread = threading.Thread(target=self.single_stream_stt.run_terminal, args=(self.receive_single_stream,self.receive_single_in_progress_stream,self.stream_lock, activation_notifier))
