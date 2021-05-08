@@ -93,6 +93,7 @@ class Controller(Node):
 			thread.start()
 
 			activation_time_delay += 0.2
+			time.sleep(2)
 
 	def stt_triggered_callback(self, msg):
 		string = msg.data
