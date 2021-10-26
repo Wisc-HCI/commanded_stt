@@ -33,7 +33,7 @@ import json
 
 # uses result_end_time currently only avaialble in v1p1beta, will be in v1 soon
 import google
-from google.cloud import speech_v1p1beta1 as speech
+from google.cloud import speech
 import pyaudio
 from six.moves import queue
 from google.api_core.retry import Retry
@@ -183,6 +183,7 @@ class SingleStreamSTT:
 		self.record = False
 		self.allow_stream = False
 		self.responses = None
+		self.must_cancel = False
 
 	def listen_print_loop(self, responses, stream, received_callback, activation_notifier, send_in_progress_text_callback):
 		"""Iterates through server responses and prints them.
@@ -268,14 +269,14 @@ class SingleStreamSTT:
 				stream_lock.release()
 				return
 
-			config = speech.types.RecognitionConfig(
-				encoding=speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
+			config = speech.RecognitionConfig(
+				encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
 				sample_rate_hertz=SAMPLE_RATE,
 				language_code='en-US',
 				max_alternatives=1,
 				enable_automatic_punctuation=True,
 				enable_word_time_offsets=True,)
-			streaming_config = speech.types.StreamingRecognitionConfig(
+			streaming_config = speech.StreamingRecognitionConfig(
 				config=config,
 				interim_results=True)
 				#single_utterance=True)
@@ -297,7 +298,7 @@ class SingleStreamSTT:
 				stream.audio_input = []
 				audio_generator = stream.generator()
 
-				requests = (speech.types.StreamingRecognizeRequest(
+				requests = (speech.StreamingRecognizeRequest(
 					audio_content=content)for content in audio_generator)
 
 				try:
@@ -340,14 +341,14 @@ class SingleStreamSTT:
 				stream_lock.release()
 				return
 
-			config = speech.types.RecognitionConfig(
-				encoding=speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
+			config = speech.RecognitionConfig(
+				encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
 				sample_rate_hertz=SAMPLE_RATE,
 				language_code='en-US',
 				max_alternatives=1,
 				enable_automatic_punctuation=True,
 				enable_word_time_offsets=True,)
-			streaming_config = speech.types.StreamingRecognitionConfig(
+			streaming_config = speech.StreamingRecognitionConfig(
 				config=config,
 				interim_results=True)
 				#single_utterance=True)
@@ -369,7 +370,7 @@ class SingleStreamSTT:
 				stream.audio_input = []
 				audio_generator = stream.generator()
 
-				requests = (speech.types.StreamingRecognizeRequest(
+				requests = (speech.StreamingRecognizeRequest(
 					audio_content=content)for content in audio_generator)
 
 				try:
@@ -405,8 +406,21 @@ class SingleStreamSTT:
 		print("cancelling perpetual stream")
 		self.allow_stream = False
 		if self.responses is not None:
+			print("responses is not None")
 			self.responses.cancel()
 			self.responses = None
+
+	def auto_cancel_perpetual(self):
+		print("AUTO cancelling perpetual stream")
+		self.allow_stream = False
+		if self.responses is not None:
+			print("responses is not None")
+			self.responses.cancel()
+			self.responses = None
+			self.must_cancel = False
+		else:
+			print("failed to cancel stream. Will cancel at next available opportunity")
+			self.must_cancel = True
 
 	def timer_callback(self, stream):
 		'''
